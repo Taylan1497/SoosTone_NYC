@@ -1,29 +1,44 @@
 WITH stats AS (
     SELECT 
-        AVG(SALE_PRICE) AS avg_sale_price,
-        STDDEV(SALE_PRICE) AS stddev_sale_price
-    FROM sales
+        AVG(sale_price) AS avg_sale_price,
+        STDDEV(sale_price) AS stddev_sale_price
+    FROM nyc_sales
 ),
 neighborhood_stats AS (
     SELECT 
-        NEIGHBORHOOD,
-        BUILDING_CLASS,
-        AVG(SALE_PRICE) AS avg_sale_price_neighborhood,
-        STDDEV(SALE_PRICE) AS stddev_sale_price_neighborhood
-    FROM sales
-    GROUP BY NEIGHBORHOOD, BUILDING_CLASS
+        neighborhood,
+        building_class_at_present,
+        AVG(sale_price) AS avg_sale_price_neighborhood,
+        STDDEV(sale_price) AS stddev_sale_price_neighborhood
+    FROM nyc_sales
+    GROUP BY neighborhood, building_class_at_present
 )
 SELECT 
     s.*,
-    (s.SALE_PRICE - st.avg_sale_price) / st.stddev_sale_price AS sale_price_zscore,
-    (s.SALE_PRICE - ns.avg_sale_price_neighborhood) / ns.stddev_sale_price_neighborhood AS sale_price_zscore_neighborhood,
-    s.SQUARE_FEET / s.UNITS AS square_ft_per_unit,
-    s.SALE_PRICE / s.UNITS AS price_per_unit
+    CASE 
+        WHEN st.stddev_sale_price > 0 THEN (s.sale_price - st.avg_sale_price) / st.stddev_sale_price 
+        ELSE NULL 
+    END AS sale_price_zscore,
+    CASE 
+        WHEN ns.stddev_sale_price_neighborhood > 0 THEN (s.sale_price - ns.avg_sale_price_neighborhood) / ns.stddev_sale_price_neighborhood 
+        ELSE NULL 
+    END AS sale_price_zscore_neighborhood,
+    CASE 
+        WHEN s.total_units > 0 THEN s.gross_square_feet / s.total_units 
+        ELSE NULL 
+    END AS square_ft_per_unit,
+    CASE 
+        WHEN s.total_units > 0 THEN s.sale_price / s.total_units 
+        ELSE NULL 
+    END AS price_per_unit
 FROM 
-    sales s
+    nyc_sales s
 CROSS JOIN 
     stats st
 JOIN 
     neighborhood_stats ns
 ON 
-    s.NEIGHBORHOOD = ns.NEIGHBORHOOD AND s.BUILDING_CLASS = ns.BUILDING_CLASS;
+    s.neighborhood = ns.neighborhood AND s.building_class_at_present = ns.building_class_at_present
+WHERE 
+    s.total_units IS NOT NULL AND s.total_units > 0;
+
